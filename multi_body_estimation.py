@@ -1,6 +1,7 @@
 import cv2                                          # подключаем openCV2
 import mediapipe as mp                              # подключаем mediapipe
-    
+import time                                         #подключаем time
+
 def distance(point1, point2):                       #функция, возвращающая расстояние между точками по модулю
     return abs(point1 - point2)
 
@@ -63,14 +64,16 @@ def BP_estimation(landmarks):                       #функция распоз
     
     
     
-def pose_recursive(origin_image, image, recursion_depth):   #функция распознавания нескольких людей (глубина рекурсии показывает максимальное количество людей)
-                                                                #В оригинальном изображении хранится наш видеоряд, который в конечном итоге выводится, 
-                                                                #в копии хранится картинка, в которой распознанные люди закрашиваются с каждым новым вызовом функции
-    results = pose.process(image)        #получаем результат
+def Multi(origin_image, image, people_count):   #функция распознавания нескольких людей (глубина рекурсии показывает максимальное количество людей)
+                                                #В оригинальном изображении хранится наш видеоряд, который в конечном итоге выводится, 
+                                                #в копии хранится картинка, в которой распознанные люди закрашиваются с каждым новым вызовом функции
+    people_detected = False                     #распознан ли человек    
+    results = pose.process(image)               #получаем результат
+    if results.pose_landmarks:                  #если человек распознан, передаем переменной true                
+        people_detected = True
     X , Y = [], []                       #создаем массивы, которые в дальнейшем заполним координатами X и Y
     h, w = image.shape[:2]               #получаем масштаб изображения (height и weight)
-    person_detected = False              #переменная, показывающая считался ли человек
-    
+    cnt = 1
     pose_state = 0                       # состояние позы человека
     body_pose = [                        #массив с расшифровкой состояний
     'BP_UNKNOWN',
@@ -80,10 +83,9 @@ def pose_recursive(origin_image, image, recursion_depth):   #функция ра
     'BP_HANDS_ON_HEAD',
     'BP_CROSS']
     
-    if results.pose_landmarks:                                        #если удалось получить точки скелета человека
+    while((cnt <= people_count) and people_detected):                 #вызываем цикл, который будет работать до тех пор, пока распознаются люди, и их кол-во меньше заданного при вызове функции Multi_people_estimation
         pose_state = BP_estimation(results.pose_landmarks.landmark)   #вызываем функцию распознавания человека и присваиваем вернувшееся значение переменной состояния
-        print( 6 - recursion_depth, " : ", body_pose[pose_state])     #выводим на экран номер человека и расшифровку его позы 
-                                                                      #вместо 6 нужно указать число, которое больше на единицу того числа, которое мы указали в первом вызове функции в строчке 117 
+        print(cnt, " : ", body_pose[pose_state])                      #выводим на экран номер человека и расшифровку его позы 
         
         if draw_mode:
             mp_draw.draw_landmarks(origin_image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS) #рисуем точки и соединяем их, получая скелет на изображении
@@ -91,9 +93,8 @@ def pose_recursive(origin_image, image, recursion_depth):   #функция ра
         for i in range(len(results.pose_landmarks.landmark)):         #получаем два массива координат по x и y
             X.append(results.pose_landmarks.landmark[i].x)
             Y.append(results.pose_landmarks.landmark[i].y)
-        person_detected = True                                        #говорим, что удалось распознать человека
+        people_detected = True                                        #говорим, что удалось распознать человека
         
-    if person_detected and recursion_depth > 0:                       #если распознан человек и глубина рекурсии, заданая в аргументе функции больше нуля
         #получаем координаты наиольших и наименьших точек по обеим осям (В данном случае наименьшая координата по оси Y будет самой выскокой на изображении, наибольшая координата - самой низкой)
         x1 = int(min(X) * w)
         y1 = int(min(Y) * h)
@@ -102,20 +103,38 @@ def pose_recursive(origin_image, image, recursion_depth):   #функция ра
         
         padding = 20                                                   #добавляем необходимый отступ вокруг человека 
         x1 = x1 - padding if x1 - padding > 0 else 0
-        y1 = y1 - 3 * padding if y1 - 3 * padding > 0 else 0
+        y1 = y1 - 10 * padding if y1 - 10 * padding > 0 else 0
         x2 = x2 + padding if x2 + padding < w else w
         y2 = y2 + padding if y2 + padding < h else h
         
         if draw_mode:
+            cv2.putText(origin_image, str(cnt), (x1 + 5, y1 + 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 100), 2) #рисуем номер человека на изображении
             cv2.rectangle(origin_image, (x1,y2), (x2,y1), color = (0,255,0), thickness = 1) #рисуем прямоугольник вокруг человека
         image[y1:y2, x1:x2] = 0                                                             #Делаем каждый пиксель прямоугольника, где есть человек, черным 
-        pose_recursive(origin_image, image, recursion_depth - 1)                            #вызываем функцию снова, передавая исходное изображение и изображение с закрашенным человеком, глубину рекурсии уменьшаем
-
+        
+        cnt += 1                                #увеличиваем счетчик на 1
+        people_detected = False                 #сбрасываем переменную на false т.к. от текущего человека получили всю необходимую информацию
+        results = pose.process(image)           #переходим к следующему человеку
+        if results.pose_landmarks:              #если удалось распознать, переменной приравниваем значение true. Цикл повторится, если мы не достигли максимального требуемого количества людей.
+            people_detected = True
     
-def Multi_people_estimation(Image):                    #Функция распознавания позы нескольких людей (получает на вход изображение)    
+def Multi_people_estimation(Image):                    #Функция распознавания позы нескольких людей (получает на вход изображение)
     img = cv2.cvtColor(Image, cv2.COLOR_BGR2RGB)       #делаем копию изображения
-    pose_recursive(Image, img, 5)                         #вызываем функцию распознавания нескольких людей, внутри нее для каждого человека вызовется функция распознавания позы
+    Multi(Image, img, 5)                               #вызываем функцию распознавания нескольких людей, внутри нее для каждого человека вызовется функция распознавания позы
+    if draw_mode:    
+        global prev_frame_time                             #определяем частоту кадров выходного изображения
+        global next_frame_time 
+        new_frame_time = time.time()
+        fps = 1/(new_frame_time - prev_frame_time)
+        prev_frame_time = new_frame_time
     
+        fps = int(fps)                                      #Преобразуем строку для вывода на выходное изображение
+        fps_str = "FPS: " + str(fps)
+
+        cv2.putText(Image, fps_str, (0, 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 100), 2)   #выводим частоту кадров на изображение
+    
+        #cv2.imshow("cam2", img)                    #выводим изображение, в котором удалены люди
+ 
 show_video = True                                  #ключ показа видео
 draw_mode = True                                   #ключ рисования на видео
 
@@ -125,6 +144,9 @@ if draw_mode:
     mp_draw = mp.solutions.drawing_utils            #подключаем инструмент для рисования
 
 cap = cv2.VideoCapture(0)                           #подключаем изображение с камеры в режиме реального времени 
+
+prev_frame_time = 0
+next_frame_time = 0
 
 while True:                                         
     _, Image = cap.read()                           #в бесконечном цикле читаем изображение

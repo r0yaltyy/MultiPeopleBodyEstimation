@@ -158,4 +158,4 @@ while True:
     k = cv2.waitKey(1)                              #завершаем работу программы на ESC
     if k == 27:  # close on ESC key
         break
-cv2.destroyAllWindows()
+        cv2.destroyAllWindows()

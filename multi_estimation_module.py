@@ -2,10 +2,23 @@ import cv2                                          # подключаем openC
 import mediapipe as mp                              # подключаем mediapipe
 import time                                         #подключаем time
 
+class Description:
+    def __init__ (self, show_video, draw_mode):
+        self.show_video = show_video                                  #ключ показа видео
+        self.draw_mode = draw_mode                                         #ключ рисования на видео
+
+        self.mp_pose = mp.solutions.pose                         #подключаем раздел распознавания тела
+        self.pose = self.mp_pose.Pose(static_image_mode=True)         #объект класса "поза"
+        if draw_mode:
+            self.mp_draw = mp.solutions.drawing_utils            #подключаем инструмент для рисования
+            self.prev_frame_time = 0
+            self.next_frame_time = 0
+
+
 def distance(point1, point2):                       #функция, возвращающая расстояние между точками по модулю
     return abs(point1 - point2)
 
-def BP_estimation(landmarks):                       #функция распознавания позы (Возвращает одно из 6 состояний)
+def BP_estimation(landmarks, Image):                       #функция распознавания позы (Возвращает одно из 6 состояний)
     
     py = [0 for i in range(33)]                         #массив для хранения точек скелета по оси Y
     px = [0 for i in range(33)]                         #массив для хранения точек скелета по оси X
@@ -64,11 +77,11 @@ def BP_estimation(landmarks):                       #функция распоз
     
     
     
-def Multi(origin_image, image, people_count):   #функция распознавания нескольких людей (глубина рекурсии показывает максимальное количество людей)
+def Multi(origin_image, image, people_count, Descript, out_msg_human_id, out_msg_state_id):   #функция распознавания нескольких людей (глубина рекурсии показывает максимальное количество людей)
                                                 #В оригинальном изображении хранится наш видеоряд, который в конечном итоге выводится, 
                                                 #в копии хранится картинка, в которой распознанные люди закрашиваются с каждым новым вызовом функции
     people_detected = False                     #распознан ли человек    
-    results = pose.process(image)               #получаем результат
+    results = Descript.pose.process(image)               #получаем результат
     if results.pose_landmarks:                  #если человек распознан, передаем переменной true                
         people_detected = True
     X , Y = [], []                       #создаем массивы, которые в дальнейшем заполним координатами X и Y
@@ -84,13 +97,13 @@ def Multi(origin_image, image, people_count):   #функция распозна
     'BP_CROSS']
     
     while((cnt <= people_count) and people_detected):                 #вызываем цикл, который будет работать до тех пор, пока распознаются люди, и их кол-во меньше заданного при вызове функции Multi_people_estimation
-        pose_state = BP_estimation(results.pose_landmarks.landmark)   #вызываем функцию распознавания человека и присваиваем вернувшееся значение переменной состояния
-        print(cnt, " : ", body_pose[pose_state])                      #выводим на экран номер человека и расшифровку его позы 
-        pose_string = str(cnt) + " : " + str(body_pose[pose_state])
+        out_msg_state_id.append(BP_estimation(results.pose_landmarks.landmark, origin_image))    #вызываем функцию распознавания человека и присваиваем вернувшееся значение переменной состояния
+        out_msg_human_id.append(cnt) 
+         
+       # print(cnt, " : ", body_pose[pose_state])                      #выводим на экран номер человека и расшифровку его позы 
         
-        
-        if draw_mode:
-            mp_draw.draw_landmarks(origin_image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS) #рисуем точки и соединяем их, получая скелет на изображении
+        if Descript.draw_mode:
+            Descript.mp_draw.draw_landmarks(origin_image, results.pose_landmarks, Descript.mp_pose.POSE_CONNECTIONS) #рисуем точки и соединяем их, получая скелет на изображении
         
         for i in range(len(results.pose_landmarks.landmark)):         #получаем два массива координат по x и y
             X.append(results.pose_landmarks.landmark[i].x)
@@ -105,57 +118,37 @@ def Multi(origin_image, image, people_count):   #функция распозна
         
         padding = 20                                                   #добавляем необходимый отступ вокруг человека 
         x1 = x1 - padding if x1 - padding > 0 else 0
-        y1 = y1 - 3 * padding if y1 - 10 * padding > 0 else 0
+        y1 = y1 - 10 * padding if y1 - 10 * padding > 0 else 0
         x2 = x2 + padding if x2 + padding < w else w
         y2 = y2 + padding if y2 + padding < h else h
         
-        if draw_mode:
-            cv2.putText(origin_image, pose_string, (x1 + 5, y1 + 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 100), 2) #рисуем номер человека на изображении
+        if Descript.draw_mode:
+            cv2.putText(origin_image, str(cnt), (x1 + 5, y1 + 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 100), 2) #рисуем номер человека на изображении
             cv2.rectangle(origin_image, (x1,y2), (x2,y1), color = (0,255,0), thickness = 1) #рисуем прямоугольник вокруг человека
         image[y1:y2, x1:x2] = 0                                                             #Делаем каждый пиксель прямоугольника, где есть человек, черным 
         
         cnt += 1                                #увеличиваем счетчик на 1
         people_detected = False                 #сбрасываем переменную на false т.к. от текущего человека получили всю необходимую информацию
-        results = pose.process(image)           #переходим к следующему человеку
+        results = Descript.pose.process(image)           #переходим к следующему человеку
         if results.pose_landmarks:              #если удалось распознать, переменной приравниваем значение true. Цикл повторится, если мы не достигли максимального требуемого количества людей.
             people_detected = True
     
-def Multi_people_estimation(Image):                    #Функция распознавания позы нескольких людей (получает на вход изображение)
+def Multi_people_estimation(Image, Descript, out_msg_human_id, out_msg_state_id):                    #Функция распознавания позы нескольких людей (получает на вход изображение)
     img = cv2.cvtColor(Image, cv2.COLOR_BGR2RGB)       #делаем копию изображения
-    Multi(Image, img, 5)                               #вызываем функцию распознавания нескольких людей, внутри нее для каждого человека вызовется функция распознавания позы
-    if draw_mode:    
-        global prev_frame_time                             #определяем частоту кадров выходного изображения
-        global next_frame_time 
-
-        new_frame_time = time.time()
-        fps = 1/(new_frame_time - prev_frame_time)
-        prev_frame_time = new_frame_time
+    out_msg_human_id.clear()
+    out_msg_state_id.clear()
+    Multi(Image, img, 5, Descript, out_msg_human_id, out_msg_state_id)                               #вызываем функцию распознавания нескольких людей, внутри нее для каждого человека вызовется функция распознавания позы
+    if Descript.draw_mode:    
+        Descript.new_frame_time = time.time()
+        fps = 1/(Descript.new_frame_time - Descript.prev_frame_time)
+        Descript.prev_frame_time = Descript.new_frame_time
     
         fps = int(fps)                                      #Преобразуем строку для вывода на выходное изображение
         fps_str = "FPS: " + str(fps)
 
         cv2.putText(Image, fps_str, (0, 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 100), 2)   #выводим частоту кадров на изображение
-    
-        #cv2.imshow("cam2", img)                    #выводим изображение, в котором удалены люди
- 
-show_video = True                                  #ключ показа видео
-draw_mode = True                                   #ключ рисования на видео
-
-mp_pose = mp.solutions.pose                         #подключаем раздел распознавания тела
-pose = mp_pose.Pose(static_image_mode=True)         #объект класса "поза"
-if draw_mode:
-    mp_draw = mp.solutions.drawing_utils            #подключаем инструмент для рисования
-
-cap = cv2.VideoCapture(0)                           #подключаем изображение с камеры в режиме реального времени 
-
-prev_frame_time = 0
-next_frame_time = 0
-while True:                                         
-    _, Image = cap.read()                           #в бесконечном цикле читаем изображение
-    Multi_people_estimation(Image)                  #вызываем функцию распознавания людей и их поз
-    if show_video:
+    if Descript.show_video:
         cv2.imshow("cam", Image)                    #выводим изображение на экран
-    k = cv2.waitKey(1)                              #завершаем работу программы на ESC
-    if k == 27:  # close on ESC key
-        break
-cv2.destroyAllWindows()
+        #cv2.imshow("cam2", img)                    #выводим изображение, в котором удалены люди
+
+

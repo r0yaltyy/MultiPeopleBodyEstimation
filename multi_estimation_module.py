@@ -115,6 +115,9 @@ def Multi(origin_image, image, people_count, Descript, out_msg_human_id, out_msg
         y1 = int(min(Y) * h)
         x2 = int(max(X) * w)
         y2 = int(max(Y) * h)
+        X.clear()
+        Y.clear()
+        
         
         padding = 20                                                   #добавляем необходимый отступ вокруг человека 
         x1 = x1 - padding if x1 - padding > 0 else 0
@@ -148,7 +151,8 @@ def Multi_people_estimation(Image, Descript, out_msg_human_id, out_msg_state_id)
 
         cv2.putText(Image, fps_str, (0, 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 100), 2)   #выводим частоту кадров на изображение
     if Descript.show_video:
+
         cv2.imshow("cam", Image)                    #выводим изображение на экран
-        #cv2.imshow("cam2", img)                    #выводим изображение, в котором удалены люди
+        cv2.imshow("cam2", img)                    #выводим изображение, в котором удалены люди
 
 

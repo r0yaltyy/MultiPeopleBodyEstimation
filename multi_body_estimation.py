@@ -97,28 +97,31 @@ def Multi(origin_image, image, people_count):   #функция распозна
             Y.append(results.pose_landmarks.landmark[i].y)
         people_detected = True                                        #говорим, что удалось распознать человека
         
+   
         #получаем координаты наиольших и наименьших точек по обеим осям (В данном случае наименьшая координата по оси Y будет самой выскокой на изображении, наибольшая координата - самой низкой)
         x1 = int(min(X) * w)
         y1 = int(min(Y) * h)
         x2 = int(max(X) * w)
         y2 = int(max(Y) * h)
+        X.clear()
+        Y.clear()
         
-        padding = 20                                                   #добавляем необходимый отступ вокруг человека 
+        padding = 10                                                   #добавляем необходимый отступ вокруг человека 
         x1 = x1 - padding if x1 - padding > 0 else 0
         y1 = y1 - 3 * padding if y1 - 10 * padding > 0 else 0
         x2 = x2 + padding if x2 + padding < w else w
         y2 = y2 + padding if y2 + padding < h else h
         
         if draw_mode:
-            cv2.putText(origin_image, pose_string, (x1 + 5, y1 + 25), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 100), 2) #рисуем номер человека на изображении
+            cv2.putText(origin_image, pose_string, (x1 + 5, y1 + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 100), 2) #рисуем номер человека на изображении
             cv2.rectangle(origin_image, (x1,y2), (x2,y1), color = (0,255,0), thickness = 1) #рисуем прямоугольник вокруг человека
         image[y1:y2, x1:x2] = 0                                                             #Делаем каждый пиксель прямоугольника, где есть человек, черным 
-        
         cnt += 1                                #увеличиваем счетчик на 1
         people_detected = False                 #сбрасываем переменную на false т.к. от текущего человека получили всю необходимую информацию
         results = pose.process(image)           #переходим к следующему человеку
         if results.pose_landmarks:              #если удалось распознать, переменной приравниваем значение true. Цикл повторится, если мы не достигли максимального требуемого количества людей.
             people_detected = True
+        
     
 def Multi_people_estimation(Image):                    #Функция распознавания позы нескольких людей (получает на вход изображение)
     img = cv2.cvtColor(Image, cv2.COLOR_BGR2RGB)       #делаем копию изображения
@@ -151,11 +154,15 @@ cap = cv2.VideoCapture(0)                           #подключаем изо
 prev_frame_time = 0
 next_frame_time = 0
 while True:                                         
-    _, Image = cap.read()                           #в бесконечном цикле читаем изображение
+   # _, Image = cap.read()                           #в бесконечном цикле читаем изображение
+    Image = cv2.imread("image3.png")
     Multi_people_estimation(Image)                  #вызываем функцию распознавания людей и их поз
     if show_video:
         cv2.imshow("cam", Image)                    #выводим изображение на экран
     k = cv2.waitKey(1)                              #завершаем работу программы на ESC
     if k == 27:  # close on ESC key
         break
-        cv2.destroyAllWindows()
+        if show_video:
+            cv2.destroyAllWindows()
+    
+    

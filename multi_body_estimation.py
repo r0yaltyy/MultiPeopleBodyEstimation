@@ -103,12 +103,14 @@ def Multi(origin_image, image, people_count):   #функция распозна
         y1 = int(min(Y) * h)
         x2 = int(max(X) * w)
         y2 = int(max(Y) * h)
+        head_coef = int(distance(Y[0], (Y[10] + Y[9]) / 2) * h * 0.5)
+        
         X.clear()
         Y.clear()
         
         padding = 10                                                   #добавляем необходимый отступ вокруг человека 
         x1 = x1 - padding if x1 - padding > 0 else 0
-        y1 = y1 - 3 * padding if y1 - 10 * padding > 0 else 0
+        y1 = y1 - head_coef * padding if y1 - head_coef * padding > 0 else 0
         x2 = x2 + padding if x2 + padding < w else w
         y2 = y2 + padding if y2 + padding < h else h
         
@@ -154,8 +156,8 @@ cap = cv2.VideoCapture(0)                           #подключаем изо
 prev_frame_time = 0
 next_frame_time = 0
 while True:                                         
-   # _, Image = cap.read()                           #в бесконечном цикле читаем изображение
-    Image = cv2.imread("image3.png")
+    _, Image = cap.read()                           #в бесконечном цикле читаем изображение
+    #Image = cv2.imread("image3.png")
     Multi_people_estimation(Image)                  #вызываем функцию распознавания людей и их поз
     if show_video:
         cv2.imshow("cam", Image)                    #выводим изображение на экран
